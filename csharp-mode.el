@@ -4931,6 +4931,15 @@ The return value is meaningless, and is ignored by cc-mode.
 ;; these defuns.
 ;;
 
+(defun csharp-looking-at-instance-initializer ()
+  (and (c-major-mode-is 'csharp-mode)
+       (looking-at "new[ \t\n\f\v\r]+\\([[:alnum:]_]+\\)\\b")))
+
+(defun csharp-looking-at-lambda-header ()
+  (and (c-major-mode-is 'csharp-mode)
+       (or (looking-at "([[:alnum:][:space:]_,]*)\\s-*=>\\s-*{")
+           (looking-at "[[:alnum:]_]+\\s-*=>\\s-*{"))))
+
 (defun c-looking-at-inexpr-block (lim containing-sexp &optional check-at-end)
   ;; Return non-nil if we're looking at the beginning of a block
   ;; inside an expression.  The value returned is actually a cons of
@@ -4962,7 +4971,9 @@ The return value is meaningless, and is ignored by cc-mode.
                          (> (point) closest-lim))
                   (not (bobp))
                   (progn (backward-char)
-                         (looking-at "[\]\).]\\|\w\\|\\s_"))
+                         (or (looking-at "[\]\).]\\|\\w\\|\\s_")
+                             (and (c-major-mode-is 'csharp-mode)
+                                  (looking-at ">"))))
                   (c-safe (forward-char)
                           (goto-char (scan-sexps (point) -1))))
 
@@ -4973,16 +4984,12 @@ The return value is meaningless, and is ignored by cc-mode.
                      ((and block-follows
                            (c-keyword-member kw-sym 'c-inexpr-class-kwds))
                       (and (not (eq passed-paren ?\[))
-
                            ;; dinoch Thu, 22 Apr 2010  18:20
                            ;; ============================================
                            ;; looking at new MyType() { ... }
                            ;; means this is a brace list, so, return nil,
                            ;; implying NOT looking-at-inexpr-block
-                           (not
-                            (and (c-major-mode-is 'csharp-mode)
-                                 (looking-at "new[ \t\n\f\v\r]+\\([[:alnum:]_]+\\)\\b")))
-
+                           (not (csharp-looking-at-instance-initializer))
                            (or (not (looking-at c-class-key))
                                ;; If the class instantiation is at the start of
                                ;; a statement, we don't consider it an
@@ -5013,8 +5020,7 @@ The return value is meaningless, and is ignored by cc-mode.
                         (cons 'inlambda (point))))
                      ((c-keyword-member kw-sym 'c-block-stmt-kwds)
                       nil)
-                     (t
-                      'maybe)))
+                     (t 'maybe)))
 
                 (if (looking-at "\\s(")
                     (if passed-paren
@@ -5025,7 +5031,10 @@ The return value is meaningless, and is ignored by cc-mode.
                             'maybe)
                       (setq passed-paren (char-after))
                       'maybe)
-                  'maybe))))
+                  'maybe)
+
+                (if (csharp-looking-at-lambda-header)
+                    (cons 'inexpr (point))))))
 
       (if (eq res 'maybe)
           (when (and c-recognize-paren-inexpr-blocks
@@ -5041,12 +5050,19 @@ The return value is meaningless, and is ignored by cc-mode.
                          (c-looking-at-special-brace-list)))
                 nil
               (cons 'inexpr-statement (point))))
-
         res))))
 
 
-
-
+;; dinoch Thu, 22 Apr 2010  18:20
+;; ============================================
+;; looking enum Foo : int
+;; means this is a brace list, so, return nil,
+;; implying NOT looking-at-inexpr-block
+(defun csharp-looking-at-enum-decl ()
+  (and (c-major-mode-is 'csharp-mode)
+     (progn
+       (c-safe (c-forward-sexp -1))
+       (looking-at csharp-enum-decl-re))))
 
 (defun c-inside-bracelist-p (containing-sexp paren-state)
   ;; return the buffer position of the beginning of the brace list
@@ -5068,22 +5084,15 @@ The return value is meaningless, and is ignored by cc-mode.
        (c-safe (c-forward-sexp -1))
        (let (bracepos)
          (if (and (or (looking-at c-brace-list-key)
-
                       (progn
                         (c-safe (c-forward-sexp -1))
                         (looking-at c-brace-list-key))
-
                       ;; dinoch Thu, 22 Apr 2010  18:20
                       ;; ============================================
                       ;; looking enum Foo : int
                       ;; means this is a brace list, so, return nil,
                       ;; implying NOT looking-at-inexpr-block
-
-                      (and (c-major-mode-is 'csharp-mode)
-                           (progn
-                             (c-safe (c-forward-sexp -1))
-                             (looking-at csharp-enum-decl-re))))
-
+                      (csharp-looking-at-enum-decl))
                   (setq bracepos (c-down-list-forward (point)))
                   (not (c-crosses-statement-barrier-p (point)
                                                       (- bracepos 2))))
