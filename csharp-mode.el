@@ -1927,6 +1927,11 @@ only if flymake is loaded."
 
 
 ;;;###autoload
+(defcustom csharp-csc-tool "csc.exe"
+  "*The csc tool."
+  :type 'string :group 'csharp)
+
+;;;###autoload
 (defcustom csharp-make-tool "nmake.exe"
   "*The make tool to use. Defaults to nmake, found on path. Specify
 a full path or alternative program name, to tell csharp-mode to use
@@ -2342,7 +2347,7 @@ Some notes on implementation:
 
      (t
       ;; fallback
-      (list "csc.exe"
+      (list csharp-csc-tool
             (append (csharp-flymake-get-final-csc-arguments
                      csharp-flymake-csc-arguments)
                     (list source)))))))
